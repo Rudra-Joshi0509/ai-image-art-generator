@@ -11,7 +11,7 @@ st.set_page_config(page_title="🎨 AI Image Art Generator", layout="wide")
 st.title("🎨 AI Image Art Generator")
 st.write("Convert your photos into sketch, cartoon and artistic styles 🚀")
 
-#3. Upload MULTIPLE images (FIXED ISSUE)
+#3. Upload MULTIPLE images
 uploaded_files = st.file_uploader(
     "Upload Images", 
     type=["jpg", "png", "jpeg"], 
@@ -33,7 +33,13 @@ if uploaded_files:
         image = Image.open(uploaded_file)
         img = np.array(image)
 
-        # Convert RGB → BGR
+        # 🔥 Resize for consistency (fix mobile issue)
+        height, width = img.shape[:2]
+        if width > 800:
+            scale = 800 / width
+            img = cv2.resize(img, (int(width * scale), int(height * scale)))
+
+        # Convert RGB → BGR (ONLY ONCE)
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         col1, col2 = st.columns(2)
@@ -48,22 +54,32 @@ if uploaded_files:
 
         if mode == "Pencil Sketch":
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (21, 21), 0)
+
+            # Normalize brightness (fix white issue)
+            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+
+            blur = cv2.GaussianBlur(gray, (15, 15), 0)
             sketch = cv2.divide(gray, blur, scale=256)
+
+            # Reduce over-brightness
+            sketch = cv2.convertScaleAbs(sketch, alpha=0.9, beta=-20)
+
             result = sketch
 
         elif mode == "Cartoon":
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            blur = cv2.medianBlur(gray, 5)
+            gray = cv2.medianBlur(gray, 7)
 
             edges = cv2.adaptiveThreshold(
-                blur, 255,
+                gray, 255,
                 cv2.ADAPTIVE_THRESH_MEAN_C,
                 cv2.THRESH_BINARY,
-                9, 9
+                9, 5
             )
 
-            color = cv2.bilateralFilter(img, 9, 300, 300)
+            # Strong smoothing (better cartoon effect)
+            color = cv2.bilateralFilter(img, 15, 250, 250)
+
             cartoon = cv2.bitwise_and(color, color, mask=edges)
             result = cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB)
 
@@ -83,12 +99,13 @@ if uploaded_files:
         with col2:
             st.subheader("Result")
 
-            if mode == "Cartoon":
-                st.image(result, use_column_width=True)
-                final_img = Image.fromarray(result)
+            # Handle grayscale properly
+            if len(result.shape) == 2:
+                st.image(result, use_column_width=True, clamp=True)
+                final_img = Image.fromarray(result.astype(np.uint8))
             else:
                 st.image(result, use_column_width=True)
-                final_img = Image.fromarray(result)
+                final_img = Image.fromarray(result.astype(np.uint8))
 
         # =========================
         # DOWNLOAD BUTTON
@@ -106,5 +123,6 @@ if uploaded_files:
 
         st.divider()
 
+# Footer
 st.markdown("---")
 st.markdown("👨‍💻 Developed by **Rudra Joshi**")
