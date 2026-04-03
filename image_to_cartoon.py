@@ -11,10 +11,10 @@ st.set_page_config(page_title="🎨 AI Image Art Generator", layout="wide")
 st.title("🎨 AI Image Art Generator")
 st.write("Convert your photos into sketch, cartoon and artistic styles 🚀")
 
-#3. Upload MULTIPLE images
+#3. Upload MULTIPLE images (FIXED)
 uploaded_files = st.file_uploader(
     "Upload Images", 
-    type=["jpg", "png", "jpeg"], 
+    type=["jpg", "jpeg", "png", "webp"], 
     accept_multiple_files=True
 )
 
@@ -29,17 +29,31 @@ if uploaded_files:
 
     for uploaded_file in uploaded_files:
 
-        # Read image
-        image = Image.open(uploaded_file)
-        img = np.array(image)
+        # =========================
+        # SAFE IMAGE LOADING (FIX)
+        # =========================
+        try:
+            image = Image.open(uploaded_file)
 
-        # 🔥 Resize for consistency (fix mobile issue)
+            # Convert ALL formats to RGB (fix mobile issue)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
+            img = np.array(image).astype(np.uint8)
+
+        except:
+            st.error("❌ Error loading image. Try another file.")
+            continue
+
+        # =========================
+        # RESIZE (fix mobile issue)
+        # =========================
         height, width = img.shape[:2]
         if width > 800:
             scale = 800 / width
             img = cv2.resize(img, (int(width * scale), int(height * scale)))
 
-        # Convert RGB → BGR (ONLY ONCE)
+        # Convert RGB → BGR
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         col1, col2 = st.columns(2)
@@ -49,19 +63,17 @@ if uploaded_files:
             st.image(image, use_column_width=True)
 
         # =========================
-        # IMAGE PROCESSING LOGIC
+        # IMAGE PROCESSING
         # =========================
 
         if mode == "Pencil Sketch":
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-            # Normalize brightness (fix white issue)
             gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
 
             blur = cv2.GaussianBlur(gray, (15, 15), 0)
             sketch = cv2.divide(gray, blur, scale=256)
 
-            # Reduce over-brightness
+            # Fix brightness
             sketch = cv2.convertScaleAbs(sketch, alpha=0.9, beta=-20)
 
             result = sketch
@@ -77,10 +89,9 @@ if uploaded_files:
                 9, 5
             )
 
-            # Strong smoothing (better cartoon effect)
             color = cv2.bilateralFilter(img, 15, 250, 250)
-
             cartoon = cv2.bitwise_and(color, color, mask=edges)
+
             result = cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB)
 
         elif mode == "Black & White":
@@ -99,7 +110,6 @@ if uploaded_files:
         with col2:
             st.subheader("Result")
 
-            # Handle grayscale properly
             if len(result.shape) == 2:
                 st.image(result, use_column_width=True, clamp=True)
                 final_img = Image.fromarray(result.astype(np.uint8))
