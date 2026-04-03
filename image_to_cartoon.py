@@ -5,16 +5,19 @@ import streamlit as st
 from PIL import Image
 import io
 
+# 🔥 HEIC support (IMPORTANT)
+from pillow_heif import register_heif_opener
+register_heif_opener()
+
 #2. Page setup
 st.set_page_config(page_title="🎨 AI Image Art Generator", layout="wide")
 
 st.title("🎨 AI Image Art Generator")
 st.write("Convert your photos into sketch, cartoon and artistic styles 🚀")
 
-#3. Upload MULTIPLE images (FIXED)
+#3. Upload MULTIPLE images (NO TYPE RESTRICTION)
 uploaded_files = st.file_uploader(
-    "Upload Images", 
-    type=["jpg", "jpeg", "png", "webp"], 
+    "Upload Images",
     accept_multiple_files=True
 )
 
@@ -30,19 +33,18 @@ if uploaded_files:
     for uploaded_file in uploaded_files:
 
         # =========================
-        # SAFE IMAGE LOADING (FIX)
+        # SAFE IMAGE LOADING (ALL FORMATS)
         # =========================
         try:
             image = Image.open(uploaded_file)
 
-            # Convert ALL formats to RGB (fix mobile issue)
-            if image.mode != "RGB":
-                image = image.convert("RGB")
+            # Convert EVERYTHING to RGB
+            image = image.convert("RGB")
 
             img = np.array(image).astype(np.uint8)
 
-        except:
-            st.error("❌ Error loading image. Try another file.")
+        except Exception as e:
+            st.error(f"❌ Cannot process: {uploaded_file.name}")
             continue
 
         # =========================
@@ -73,9 +75,7 @@ if uploaded_files:
             blur = cv2.GaussianBlur(gray, (15, 15), 0)
             sketch = cv2.divide(gray, blur, scale=256)
 
-            # Fix brightness
             sketch = cv2.convertScaleAbs(sketch, alpha=0.9, beta=-20)
-
             result = sketch
 
         elif mode == "Cartoon":
